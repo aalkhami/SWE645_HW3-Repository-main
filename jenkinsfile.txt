@@ -1,0 +1,47 @@
+pipeline {
+    agent any
+    
+    environment {
+        registry = "381492249680.dkr.ecr.us-east-1.amazonaws.com/springboot-repo"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scmGit(branches: [[name: '*/master']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/Adel-Alkhamisy/SWE645_HW3-Repository.git']])
+            }
+        }
+        
+        stage ("Build jar") {
+            steps {
+                sh "mvn clean install"
+            }
+        }
+        
+        stage ("Build image") {
+            steps {
+                script {
+                    dockerImage = docker.build registry
+                    dockerImage.tag("$BUILD_NUMBER")
+                }
+            }
+        }
+        
+        stage ("Push Image") {
+            steps {
+                script {
+                    sh "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 381492249680.dkr.ecr.us-east-1.amazonaws.com"
+                    sh "docker push 381492249680.dkr.ecr.us-east-1.amazonaws.com/springboot-repo:$BUILD_NUMBER"
+                }
+            }
+        }
+        
+        stage ("Helm Deploy") {
+            steps {
+                script {
+                    sh "helm upgrade first --install mychart --namespace springboot-ns --set image.tag=$BUILD_NUMBER"
+                }
+            }
+        }
+    }
+}
